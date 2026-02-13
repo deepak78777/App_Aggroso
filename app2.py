@@ -2,19 +2,43 @@ import streamlit as st
 import os
 from dotenv import load_dotenv
 from groq import Groq
+import PyPDF2
+from docx import Document
 
 # Load environment variables
 load_dotenv()
 
 GROQ_API_KEY = "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"
 MODEL_NAME = "openai/gpt-oss-20b"
-# Initialize Groq client
+
 client = Groq(api_key=GROQ_API_KEY)
 
 st.set_page_config(page_title="Simple Doc Q&A", layout="centered")
 
 st.title("📄 Simple Document Q&A")
-st.write("Upload multiple text documents, select one, and ask a question.")
+st.write("Upload TXT, PDF, or DOCX files. Select one and ask a question.")
+
+# -----------------------------
+# Helper function to extract text
+# -----------------------------
+def extract_text(file):
+    if file.name.endswith(".txt"):
+        return file.read().decode("utf-8")
+
+    elif file.name.endswith(".pdf"):
+        pdf_reader = PyPDF2.PdfReader(file)
+        text = ""
+        for page in pdf_reader.pages:
+            text += page.extract_text() or ""
+        return text
+
+    elif file.name.endswith(".docx"):
+        doc = Document(file)
+        text = "\n".join([para.text for para in doc.paragraphs])
+        return text
+
+    else:
+        return None
 
 # -----------------------------
 # Session storage
@@ -23,23 +47,27 @@ if "documents" not in st.session_state:
     st.session_state.documents = {}
 
 # -----------------------------
-# Upload Multiple Files
+# File Upload
 # -----------------------------
 uploaded_files = st.file_uploader(
-    "Upload .txt files",
-    type=["txt"],
+    "Upload files",
+    type=["txt", "pdf", "docx"],
     accept_multiple_files=True
 )
 
 if uploaded_files:
     for uploaded_file in uploaded_files:
-        content = uploaded_file.read().decode("utf-8")
-        st.session_state.documents[uploaded_file.name] = content
+        text_content = extract_text(uploaded_file)
+
+        if text_content:
+            st.session_state.documents[uploaded_file.name] = text_content
+        else:
+            st.warning(f"Unsupported file type: {uploaded_file.name}")
 
     st.success("Files uploaded successfully!")
 
 # -----------------------------
-# Select File
+# File Selection
 # -----------------------------
 doc_names = list(st.session_state.documents.keys())
 
