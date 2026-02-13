@@ -5,50 +5,39 @@ from groq import Groq
 import PyPDF2
 from docx import Document
 
-# Load environment variables
 load_dotenv()
 
-GROQ_API_KEY = "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"
-MODEL_NAME = "openai/gpt-oss-20b"
+GROQ_API_KEY = os.getenv("GROQ_API_KEY")
+MODEL_NAME = os.getenv("MODEL_NAME")
 
 client = Groq(api_key=GROQ_API_KEY)
 
 st.set_page_config(page_title="Simple Doc Q&A", layout="centered")
 
-st.title("📄 Simple Document Q&A")
-st.write("Upload TXT, PDF, or DOCX files. Select one and ask a question.")
+st.title("Document Q&A")
+st.write("Upload TXT, PDF, or DOCX files and ask questions.")
 
-# -----------------------------
-# Helper function to extract text
-# -----------------------------
 def extract_text(file):
     if file.name.endswith(".txt"):
         return file.read().decode("utf-8")
 
-    elif file.name.endswith(".pdf"):
-        pdf_reader = PyPDF2.PdfReader(file)
+    if file.name.endswith(".pdf"):
+        reader = PyPDF2.PdfReader(file)
         text = ""
-        for page in pdf_reader.pages:
+        for page in reader.pages:
             text += page.extract_text() or ""
         return text
 
-    elif file.name.endswith(".docx"):
+    if file.name.endswith(".docx"):
         doc = Document(file)
-        text = "\n".join([para.text for para in doc.paragraphs])
-        return text
+        return "\n".join(p.text for p in doc.paragraphs)
 
-    else:
-        return None
+    return None
 
-# -----------------------------
-# Session storage
-# -----------------------------
+
 if "documents" not in st.session_state:
     st.session_state.documents = {}
 
-# -----------------------------
-# File Upload
-# -----------------------------
 uploaded_files = st.file_uploader(
     "Upload files",
     type=["txt", "pdf", "docx"],
@@ -56,54 +45,35 @@ uploaded_files = st.file_uploader(
 )
 
 if uploaded_files:
-    for uploaded_file in uploaded_files:
-        text_content = extract_text(uploaded_file)
+    for file in uploaded_files:
+        content = extract_text(file)
+        if content:
+            st.session_state.documents[file.name] = content
+    st.success("Files uploaded successfully")
 
-        if text_content:
-            st.session_state.documents[uploaded_file.name] = text_content
-        else:
-            st.warning(f"Unsupported file type: {uploaded_file.name}")
-
-    st.success("Files uploaded successfully!")
-
-# -----------------------------
-# File Selection
-# -----------------------------
 doc_names = list(st.session_state.documents.keys())
 
 if doc_names:
-    selected_doc = st.selectbox("Select a Document", doc_names)
-    st.info(f"Currently selected: {selected_doc}")
+    selected_doc = st.selectbox("Select a document", doc_names)
 else:
     selected_doc = None
-    st.warning("Please upload at least one document.")
+    st.warning("Upload at least one document")
 
-# -----------------------------
-# Question Input
-# -----------------------------
 question = st.text_input("Enter your question")
 
-# -----------------------------
-# Get Answer
-# -----------------------------
 if st.button("Get Answer"):
-
     if not GROQ_API_KEY:
-        st.error("GROQ_API_KEY not found.")
-
+        st.error("API key not found")
     elif not selected_doc:
-        st.warning("Please select a document.")
-
+        st.warning("Select a document")
     elif not question.strip():
-        st.warning("Please enter a question.")
-
+        st.warning("Enter a question")
     else:
         document_text = st.session_state.documents[selected_doc]
 
         prompt = f"""
-You are a helpful assistant.
-Answer the question ONLY using the document below.
-If the answer is not found in the document, say "I don't know."
+Answer the question using only the document below.
+If the answer is not in the document, say "I don't know."
 
 Document:
 {document_text}
@@ -116,16 +86,13 @@ Question:
             with st.spinner("Generating answer..."):
                 response = client.chat.completions.create(
                     model=MODEL_NAME,
-                    messages=[
-                        {"role": "user", "content": prompt}
-                    ],
+                    messages=[{"role": "user", "content": prompt}],
                     temperature=0
                 )
 
-                answer = response.choices[0].message.content
-
-                st.subheader("Answer:")
-                st.write(answer)
+            answer = response.choices[0].message.content
+            st.subheader("Answer")
+            st.write(answer)
 
         except Exception as e:
-            st.error(f"Error: {str(e)}")
+            st.error(str(e))
