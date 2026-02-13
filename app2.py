@@ -1,15 +1,9 @@
 import streamlit as st
 import os
-from dotenv import load_dotenv
 from groq import Groq
 import PyPDF2
 from docx import Document
-
-# Load environment variables
-load_dotenv()
-
-GROQ_API_KEY = "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"
-MODEL_NAME = "openai/gpt-oss-20b"
+from config import GROQ_API_KEY, MODEL_NAME
 
 client = Groq(api_key=GROQ_API_KEY)
 
